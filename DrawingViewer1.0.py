@@ -254,7 +254,7 @@ class Zoom_Advanced(ttk.Frame):
         key2 = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, value + "\\shell\\open\\command")
         name, path, type = winreg.EnumValue(key2, 0)
         cmd = path[:-5]
-        win32api.ShellExecute(0, '', cmd, " /P " + file, '', 0)
+        win32api.ShellExecute(0, '', cmd, " /p " + file, '', 0)
         self.foo()
 
     def pageUp(self, path, f_type):
@@ -311,16 +311,19 @@ class Zoom_Advanced(ttk.Frame):
         time.sleep(1)
         hwnd_reader = win32gui.FindWindow(None, "Adobe Reader")
         hwnd_dc = win32gui.FindWindow(None, "Adobe Acrobat Reader DC")
+        hwnd_foxit = win32gui.FindWindow(None, "福昕阅读器")
         # print("1.hWnd2=%s" % hWnd2)
         if hwnd_reader == 0 and hwnd_dc == 0:
             time.sleep(5)
         while 1:
             hwnd_reader = win32gui.FindWindow(None, "Adobe Reader")
             hwnd_dc = win32gui.FindWindow(None, "Adobe Acrobat Reader DC")
+            hwnd_foxit = win32gui.FindWindow(None, "福昕阅读器")
             # print("2.hWnd2=%s" % hWnd2)
             if hwnd_reader or hwnd_dc:
                 win32gui.PostMessage(hwnd_reader, win32con.WM_CLOSE, 0, 0)
                 win32gui.PostMessage(hwnd_dc, win32con.WM_CLOSE, 0, 0)
+                win32gui.PostMessage(hwnd_foxit, win32con.WM_CLOSE, 0, 0)
                 break
             i = i + 1
             if i == 10:
