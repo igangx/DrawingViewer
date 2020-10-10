@@ -251,6 +251,8 @@ class Zoom_Advanced(ttk.Frame):
     def print_pdf(self, file):
         key = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r".pdf")
         name, value, type = winreg.EnumValue(key, 0)
+        if value != "FoxitReader.Document":
+            name, value, type = winreg.EnumValue(key, 1)
         key2 = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, value + "\\shell\\open\\command")
         name, path, type = winreg.EnumValue(key2, 0)
         cmd = path[:-5]
