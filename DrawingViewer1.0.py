@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # Advanced zoom example. Like in Google Maps.
 # It zooms only a tile, but not the whole image. So the zoomed tile occupies
 # constant memory and not crams it with a huge resized image for the large zooms.
@@ -10,17 +10,13 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 from tkinter import *
 import tempfile
-import win32api
 import win32print
 import winreg
-#import numpy as np
-
-#import matplotlib.pyplot as plt
-#import PIL.ImageOps
-#from tkinter import filedialog
-#import tempfile
+import shutil
 import os
 import fitz
+import time
+import win32api,win32gui,win32con
 
 class AutoScrollbar(ttk.Scrollbar):
     ''' A scrollbar that hides itself if it's not needed.
@@ -45,7 +41,14 @@ class Zoom_Advanced(ttk.Frame):
         
         ''' Initialize the main Frame '''
         ttk.Frame.__init__(self, master=mainframe)
-        self.master.title('查看图纸')
+        self.master.title('DrawingViewer')
+
+        # 判断文件类型
+        ext = os.path.splitext(path)[1]
+        if (ext == ".tif") or (ext == ".TIF") or (ext == ".tiff") or (ext == ".TIFF"):
+            file_type = 'tif'
+        elif (ext == ".pdf") or (ext == ".PDF"):
+            file_type = 'pdf'
 
         # Vertical and horizontal scrollbars for canvas
         vbar = AutoScrollbar(self.master, orient='vertical')
@@ -69,39 +72,37 @@ class Zoom_Advanced(ttk.Frame):
         self.canvas.bind('<MouseWheel>', self.wheel)  # with Windows and MacOS, but not Linux
         self.canvas.bind('<Button-5>',   self.wheel)  # only with Linux, wheel scroll down
         self.canvas.bind('<Button-4>',   self.wheel)  # only with Linux, wheel scroll up
-        if path[-3:] == 'tif':
+        if file_type == 'tif':
             self.image = PIL.Image.open(path).convert('RGB')  # open imag
-        elif path[-3:] == 'pdf':
+            page_total_num = countTifPages(path)
+        elif file_type == 'pdf':
             self.image = self.page_pdf(path,0)
+            page_total_num = countPdfPages(path)
+        current_page = 0
 
         self.width, self.height = self.image.size
         self.imscale = 1.0  # scale for the canvaas image
         self.delta = 1.3  # zoom magnitude
         # Put image into container rectangle and use it to set proper coordinates to the image
-        self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
-
-        # 获取页数
-        if path[-3:] == 'tif':
-            page_total_num = countTifPages(path)
-            file_type = 'tif'
-        elif path[-3:] == 'pdf':
-            page_total_num = countPdfPages(path)
-            file_type = 'pdf'
-        current_page = 0
+        self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)     
 
         # 创建翻页按钮
         fm2 = tk.Frame(self.master)
         PrevPage = tkinter.Button(fm2, text="上一页", command=lambda: self.pageUp(path,file_type)).pack(side=LEFT)
         NextPage = tkinter.Button(fm2, text="下一页", command=lambda: self.pageDown(path,file_type)).pack(side=RIGHT)
+        # 创建页码标签        
+        self.textvar = tk.StringVar()
+        label = tkinter.Label(fm2,textvariable=self.textvar).pack(side=BOTTOM)
+        self.textvar.set(str(current_page+1) + "/" + str(page_total_num))
         fm2.grid(row=2, column=0)
 
         # 创建一个打印按钮
-        fm2 = tk.Frame(self.master)
-        if path[-3:] == 'tif': 
-            Bcom = tkinter.Button(fm2, text ="打印", command = lambda: self.print_tif(path)).pack()
-        elif path[-3:] == 'pdf':
-            Bcom = tkinter.Button(fm2, text ="打印", command = lambda: self.print_pdf(path)).pack()
-        fm2.grid(row=3,column=0)
+        fm3 = tk.Frame(self.master)
+        if file_type == 'tif': 
+            Bcom = tkinter.Button(fm3, text ="打印", command = lambda: self.print_tif(path)).pack()
+        elif file_type == 'pdf':
+            Bcom = tkinter.Button(fm3, text ="打印", command = lambda: self.print_pdf(path)).pack()
+        fm3.grid(row=3,column=0)
 
         self.show_image()
 
@@ -178,6 +179,7 @@ class Zoom_Advanced(ttk.Frame):
                                                anchor='nw', image=imagetk)
             self.canvas.lower(imageid)  # set image into background
             self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
+        self.textvar.set(str(current_page+1) + "/" + str(page_total_num))
 
     def page_tif(self,path):
         img=PIL.Image.open(path)
@@ -216,8 +218,8 @@ class Zoom_Advanced(ttk.Frame):
         key2 = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT,value+"\\shell\\open\\command")
         name, path, type = winreg.EnumValue(key2, 0)
         cmd = path[:-5]
-        os.system(cmd+" /P "+file)
-        #os.system('taskkill AcroRd32.exe')
+        win32api.ShellExecute(0, '', cmd, " /P "+file, '', 0)
+        self.foo()
 
     def pageUp(self, path, f_type):
         global current_page
@@ -242,6 +244,39 @@ class Zoom_Advanced(ttk.Frame):
         elif f_type == 'pdf':
             self.image=self.page_pdf(path,current_page)
         self.show_image()
+
+    def foo(self):
+        time.sleep(1)
+        hWnd_jp = win32gui.FindWindow(None, "印刷")
+        hWnd_cn = win32gui.FindWindow(None, "打印")
+        #print("1.hWnd1=%s" % hWnd1)
+        if hWnd_jp == 0 and hWnd_cn == 0:
+            time.sleep(5)
+        while hWnd_jp or hWnd_cn:
+            time.sleep(0.1)
+            hWnd_jp = win32gui.FindWindow(None, "印刷")
+            hWnd_cn = win32gui.FindWindow(None, "打印")
+            #print("2.hWnd1=%s" % hWnd1)
+        i=1
+        #print("print closed")
+        time.sleep(1)
+        hWnd_reader = win32gui.FindWindow(None, "Adobe Reader")
+        hWnd_DC = win32gui.FindWindow(None, "Adobe Acrobat Reader DC")
+        #print("1.hWnd2=%s" % hWnd2)
+        if hWnd_reader == 0 and hWnd_DC == 0:
+            time.sleep(5)
+        while 1:
+            hWnd_reader = win32gui.FindWindow(None, "Adobe Reader")
+            hWnd_DC = win32gui.FindWindow(None, "Adobe Acrobat Reader DC")
+            #print("2.hWnd2=%s" % hWnd2)
+            if hWnd_reader or hWnd_DC:
+                win32gui.PostMessage(hWnd_reader, win32con.WM_CLOSE, 0, 0)
+                win32gui.PostMessage(hWnd_DC, win32con.WM_CLOSE, 0, 0)
+                break
+            i=i+1
+            if i==10:
+                break
+
 
 def countTifPages(file):
 # 统计tif页数
@@ -274,6 +309,15 @@ def loadFile(patha):
 
 if __name__ == '__main__':
     PIL.Image.MAX_IMAGE_PIXELS = 1000000000
-    loadFile(sys.argv[1])
+    tmp = ''
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path_ori=sys.argv[1]
+        fileName = os.path.split(path_ori)[1]
+        extname = os.path.splitext(path_ori)[1]
+        shutil.move(path_ori, tmpdir)
+        file = os.path.join(tmpdir, fileName)
+        tmpfile = os.path.join(tmpdir, "82218868"+extname)
+        os.rename(file, tmpfile)
+        loadFile(tmpfile)
 
 #    top.mainloop()
