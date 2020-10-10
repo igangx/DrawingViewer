@@ -43,12 +43,12 @@ class AutoScrollbar(ttk.Scrollbar):
 class Zoom_Advanced(ttk.Frame):
     """ Advanced zoom of the image """
 
-    def __init__(self, mainframe, path):
+    def __init__(self, mainframe, file_name, path):
         global page_total_num, current_page
 
         ''' Initialize the main Frame '''
         ttk.Frame.__init__(self, master=mainframe)
-        self.master.title('DrawingViewer')
+        self.master.title(file_name+'-DrawingViewer')
 
         # 判断文件类型
         ext = os.path.splitext(path)[1]
@@ -57,30 +57,30 @@ class Zoom_Advanced(ttk.Frame):
         elif (ext == ".pdf") or (ext == ".PDF"):
             file_type = 'pdf'
 
-        # Vertical and horizontal scrollbars for canvas
+        # 创建竖向和横向滚动条
         vbar = AutoScrollbar(self.master, orient='vertical')
         hbar = AutoScrollbar(self.master, orient='horizontal')
         vbar.grid(row=0, column=2, sticky='ns')
-        hbar.grid(row=1, column=0, sticky='we')
-        # Create canvas and put image on it
+        hbar.grid(row=1, column=0, sticky='we', columnspan=2)
+        # 创建画布并放置图片
         self.canvas = tk.Canvas(self.master, highlightthickness=0,
-                                xscrollcommand=hbar.set, yscrollcommand=vbar.set, cursor='hand2')
+                                xscrollcommand=hbar.set, yscrollcommand=vbar.set, cursor='hand2', bd=2, relief="groove")
         self.canvas.grid(row=0, column=0, sticky='nswe', columnspan=2)
         self.canvas.update()  # wait till canvas is created
-        vbar.configure(command=self.scroll_y)  # bind scrollbars to the canvas
+        vbar.configure(command=self.scroll_y)  # 映射滚动条到画布
         hbar.configure(command=self.scroll_x)
-        # Make the canvas expandable
+        # 使画布可扩展
         self.master.rowconfigure(0, weight=1)
         self.master.columnconfigure(0, weight=1)
-        # Bind events to the Canvas
-        self.canvas.bind('<Configure>', self.show_image)  # canvas is resized
+        # 映射事件到画布
+        self.canvas.bind('<Configure>', self.show_image)  # 重置画布大小
         self.canvas.bind('<ButtonPress-1>', self.move_from)
         self.canvas.bind('<B1-Motion>', self.move_to)
         self.canvas.bind('<MouseWheel>', self.wheel)  # with Windows and MacOS, but not Linux
         self.canvas.bind('<Button-5>', self.wheel)  # only with Linux, wheel scroll down
         self.canvas.bind('<Button-4>', self.wheel)  # only with Linux, wheel scroll up
         if file_type == 'tif':
-            self.image = PIL.Image.open(path).convert('RGB')  # open imag
+            self.image = PIL.Image.open(path).convert('RGB')  # 打开图片
             page_total_num = countTifPages(path)
         elif file_type == 'pdf':
             self.image = self.page_pdf(path, 0)
@@ -88,15 +88,19 @@ class Zoom_Advanced(ttk.Frame):
         current_page = 0
 
         self.width, self.height = self.image.size
-        self.imscale = 1.0  # scale for the canvaas image
-        self.delta = 1.3  # zoom magnitude
-        # Put image into container rectangle and use it to set proper coordinates to the image
+        self.imscale = 1.0  # 画布图片的比例
+        self.delta = 1.3  # 缩放比率
+        # 将图像放入容器矩形并使用它为图像设置适当的坐标
         self.container = self.canvas.create_rectangle(0, 0, self.width, self.height, width=0)
 
         # 创建翻页按钮
         fm2 = tk.Frame(self.master)
-        PrevPage = tkinter.Button(fm2, text="上一页", command=lambda: self.pageUp(path, file_type)).pack(side=LEFT)
-        NextPage = tkinter.Button(fm2, text="下一页", command=lambda: self.pageDown(path, file_type)).pack(side=RIGHT)
+        btn_state = "normal"
+        if page_total_num == 1:
+            btn_state = "disabled"
+        PrevPage = tkinter.Button(fm2, text="上一页", command=lambda: self.pageUp(path, file_type), state=btn_state).pack(side=LEFT)
+        NextPage = tkinter.Button(fm2, text="下一页", command=lambda: self.pageDown(path, file_type), state=btn_state).pack(side=RIGHT)     
+                                
         # 创建页码标签        
         self.textvar = tk.StringVar()
         label = tkinter.Label(fm2, textvariable=self.textvar).pack(side=BOTTOM)
@@ -106,10 +110,25 @@ class Zoom_Advanced(ttk.Frame):
         # 创建一个打印按钮
         fm3 = tk.Frame(self.master)
         if file_type == 'tif':
-            Bcom = tkinter.Button(fm3, text="打印", command=lambda: self.print_tif(path)).pack()
+            Bcom = tkinter.Button(fm3, text="打印", command=lambda: self.print_tif(path), width=8).pack()
         elif file_type == 'pdf':
-            Bcom = tkinter.Button(fm3, text="打印", command=lambda: self.print_pdf(path)).pack()
+            Bcom = tkinter.Button(fm3, text="打印", command=lambda: self.print_pdf(path), width=8).pack()
         fm3.grid(row=3, column=0)
+        
+        fm_scale = tk.Frame(self.master)
+        view_scale = "显示比例："+str(int(self.imscale * 100)) + "%"
+        self.textvar2 = tk.StringVar()
+        label_scale = tkinter.Label(fm_scale, textvariable=self.textvar2, width=12).pack()
+        self.textvar2.set(view_scale)      
+        fm_scale.grid(row=4, column=1)
+ 
+        fm4 = tk.Frame(self.master)
+        label_blank = tkinter.Label(fm4, width=2).pack(side=LEFT)
+        fm4.grid(row=3, column=2)
+
+        fm5 = tk.Frame(self.master)
+        label_blank = tkinter.Label(fm5, width=1).pack(side=RIGHT)
+        fm5.grid(row=1, column=2)
 
         self.show_image()
         self.show_all()
@@ -146,12 +165,13 @@ class Zoom_Advanced(ttk.Frame):
         # Respond to Linux (event.num) or Windows (event.delta) wheel event
         if event.num == 5 or event.delta == -120:  # scroll down
             i = min(self.width, self.height)
-            if int(i * self.imscale) < 30: return  # image is less than 30 pixels
+            if int(i * self.imscale) < 200: return  # image is less than 200 pixels
             self.imscale /= self.delta
             scale /= self.delta
         if event.num == 4 or event.delta == 120:  # scroll up
             i = min(self.canvas.winfo_width(), self.canvas.winfo_height())
-            if i < self.imscale: return  # 1 pixel is bigger than the visible area
+            #if i < self.imscale: return  # 1 pixel is bigger than the visible area
+            if self.imscale > 3: return  # 最大放大倍率
             self.imscale *= self.delta
             scale *= self.delta
         self.canvas.scale('all', x, y, scale, scale)  # rescale all canvas objects
@@ -160,40 +180,42 @@ class Zoom_Advanced(ttk.Frame):
 
     def show_image(self, event=None):
         """ Show image on the Canvas """
-        bbox1 = self.canvas.bbox(self.container)  # get image area
-        # Remove 1 pixel shift at the sides of the bbox1
+        bbox1 = self.canvas.bbox(self.container)  # 获取图像区域
+        # 在bbox1的四边各除去1个像素
         bbox1 = (bbox1[0] + 1, bbox1[1] + 1, bbox1[2] - 1, bbox1[3] - 1)
-        bbox2 = (self.canvas.canvasx(0),  # get visible area of the canvas
+        bbox2 = (self.canvas.canvasx(0),  # 获取画布的可见区域
                  self.canvas.canvasy(0),
                  self.canvas.canvasx(self.canvas.winfo_width()),
                  self.canvas.canvasy(self.canvas.winfo_height()))
-        bbox = [min(bbox1[0], bbox2[0]), min(bbox1[1], bbox2[1]),  # get scroll region box
+        bbox = [min(bbox1[0], bbox2[0]), min(bbox1[1], bbox2[1]),  # 获取滚动区域框
                 max(bbox1[2], bbox2[2]), max(bbox1[3], bbox2[3])]
-        if bbox[0] == bbox2[0] and bbox[2] == bbox2[2]:  # whole image in the visible area
+        if bbox[0] == bbox2[0] and bbox[2] == bbox2[2]:  # 使整个图像都在可见区域中
             bbox[0] = bbox1[0]
             bbox[2] = bbox1[2]
-        if bbox[1] == bbox2[1] and bbox[3] == bbox2[3]:  # whole image in the visible area
+        if bbox[1] == bbox2[1] and bbox[3] == bbox2[3]:  # 使整个图像都在可见区域中
             bbox[1] = bbox1[1]
             bbox[3] = bbox1[3]
-        self.canvas.configure(scrollregion=bbox)  # set scroll region
-        x1 = max(bbox2[0] - bbox1[0], 0)  # get coordinates (x1,y1,x2,y2) of the image tile
+        self.canvas.configure(scrollregion=bbox)  # 设置滚动区域
+        x1 = max(bbox2[0] - bbox1[0], 0)  # 获取图像块的坐标（x1，y1，x2，y2）
         y1 = max(bbox2[1] - bbox1[1], 0)
         x2 = min(bbox2[2], bbox1[2]) - bbox1[0]
         y2 = min(bbox2[3], bbox1[3]) - bbox1[1]
-        if int(x2 - x1) > 0 and int(y2 - y1) > 0:  # show image if it in the visible area
-            x = min(int(x2 / self.imscale), self.width)  # sometimes it is larger on 1 pixel...
-            y = min(int(y2 / self.imscale), self.height)  # ...and sometimes not
+        if int(x2 - x1) > 0 and int(y2 - y1) > 0:  # 如果在可见光区域则显示图像
+            x = min(int(x2 / self.imscale), self.width)  # 有时会大1个像素...
+            y = min(int(y2 / self.imscale), self.height)  # ...有时不会
             image = self.image.crop((int(x1 / self.imscale), int(y1 / self.imscale), x, y))
             imagetk = ImageTk.PhotoImage(image.resize((int(x2 - x1), int(y2 - y1))))
             imageid = self.canvas.create_image(max(bbox2[0], bbox1[0]), max(bbox2[1], bbox1[1]),
                                                anchor='nw', image=imagetk)
-            self.canvas.lower(imageid)  # set image into background
-            self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
-        self.textvar.set(str(current_page + 1) + "/" + str(page_total_num))
+            self.canvas.lower(imageid)  # 把图像置于背景
+            self.canvas.imagetk = imagetk  # 保留额外的参照以防止垃圾收集
+        self.container_x = bbox1[0]
+        self.container_y = bbox1[1]
+        self.textvar.set(str(current_page + 1) + "/" + str(page_total_num))  
 
         # 显示比例
-        view_scale = str(int(self.imscale * 100)) + "%"
-        #print("self.imscale=%s" % view_scale)
+        view_scale = "显示比例："+str(int(self.imscale * 100)) + "%"
+        self.textvar2.set(view_scale)
 
     def page_tif(self, path):
         img = PIL.Image.open(path)
@@ -245,6 +267,12 @@ class Zoom_Advanced(ttk.Frame):
             self.image = self.page_tif(path)
         elif f_type == 'pdf':
             self.image = self.page_pdf(path, current_page)
+
+        self.width, self.height = self.image.size
+        # 将图像放入容器矩形并使用它为图像设置适当的坐标
+        x = self.container_x
+        y = self.container_y
+        self.container = self.canvas.create_rectangle(x, y, int(x + self.width*self.imscale), int(y + self.height*self.imscale), width=0)
         self.show_image()
 
     def pageDown(self, path, f_type):
@@ -257,6 +285,13 @@ class Zoom_Advanced(ttk.Frame):
             self.image = self.page_tif(path)
         elif f_type == 'pdf':
             self.image = self.page_pdf(path, current_page)
+
+        self.width, self.height = self.image.size
+        # 将图像放入容器矩形并使用它为图像设置适当的坐标
+        x = self.container_x
+        y = self.container_y
+        self.container = self.canvas.create_rectangle(x, y, int(x + self.width*self.imscale), int(y + self.height*self.imscale), width=0)
+       
         self.show_image()
 
     def foo(self):
@@ -338,11 +373,12 @@ def countPdfPages(the_file):
     return i
 
 
-def loadFile(patha):
+def loadFile(patha, file_name):
     path1 = patha
+    fname = file_name
     root = tk.Tk()
     root.geometry("1024x768")
-    app = Zoom_Advanced(root, path=path1)
+    app = Zoom_Advanced(root, fname, path=path1)
     root.mainloop()
 
 
@@ -357,6 +393,6 @@ if __name__ == '__main__':
         file = os.path.join(tmpdir, fileName)
         tmpfile = os.path.join(tmpdir, "82218868" + extname)
         os.rename(file, tmpfile)
-        loadFile(tmpfile)
+        loadFile(tmpfile, fileName)
 
 #    top.mainloop()
