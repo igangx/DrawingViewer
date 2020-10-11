@@ -118,7 +118,7 @@ class Zoom_Advanced(ttk.Frame):
         fm_scale = tk.Frame(self.master)
         view_scale = "显示比例："+str(int(self.imscale * 100)) + "%"
         self.textvar2 = tk.StringVar()
-        label_scale = tkinter.Label(fm_scale, textvariable=self.textvar2, width=12).pack()
+        label_scale = tkinter.Label(fm_scale, textvariable=self.textvar2, width=18).pack()
         self.textvar2.set(view_scale)      
         fm_scale.grid(row=4, column=1)
  
@@ -214,7 +214,7 @@ class Zoom_Advanced(ttk.Frame):
         self.textvar.set(str(current_page + 1) + "/" + str(page_total_num))  
 
         # 显示比例
-        view_scale = "显示比例："+str(int(self.imscale * 100)) + "%"
+        view_scale = "显示比例："+str(int(self.imscale * 100)) + "%  -v1.6"
         self.textvar2.set(view_scale)
 
     def page_tif(self, path):
@@ -361,7 +361,7 @@ def countTifPages(file):
     i = 1
     try:
         img.seek(1)
-        for i in range(30):
+        for i in range(1000):
             try:
                 img.seek(i)
             except EOFError:
